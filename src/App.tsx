@@ -8,9 +8,11 @@ import {
   ChevronDown, 
   ChevronUp,
   Send,
-  Globe,
   Bot
 } from 'lucide-react';
+
+import { getAllTimelineEvents } from './data/timeline';
+import { ELECTION_FAQ } from './data/faq';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -34,6 +36,93 @@ export default function App() {
   ]);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const coachServiceRef = useRef<any>(null);
+  const mapsServiceRef = useRef<any>(null);
+  const translationServiceRef = useRef<any>(null);
+  const calendarServiceRef = useRef<any>(null);
+  const sceneContainerRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<any>(null);
+
+  const [currentLang, setCurrentLang] = useState('en');
+  const [translatedContent, setTranslatedContent] = useState<any>({});
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  const timelineEvents = getAllTimelineEvents();
+  const faqs = ELECTION_FAQ;
+
+  useEffect(() => {
+    import('./services/gemini').then(module => {
+      coachServiceRef.current = new module.ElectionCoachService();
+    });
+
+    import('./services/maps').then(module => {
+      mapsServiceRef.current = new module.ElectionMapsService();
+      mapsServiceRef.current.loadMapsApi();
+    });
+
+    import('./services/translation').then(module => {
+      translationServiceRef.current = new module.ElectionTranslationService();
+    });
+
+    import('./services/calendar').then(module => {
+      calendarServiceRef.current = new module.ElectionCalendarService();
+    });
+
+    import('./scene/ElectionScene').then(module => {
+      if (sceneContainerRef.current) {
+        sceneRef.current = new module.ElectionScene(sceneContainerRef.current);
+      }
+    });
+
+    return () => {
+      if (sceneRef.current) {
+        sceneRef.current.dispose();
+      }
+    };
+  }, []);
+
+  const handleLanguageChange = async (lang: string) => {
+    if (lang === 'en') {
+      setCurrentLang('en');
+      setTranslatedContent({});
+      return;
+    }
+
+    if (!translationServiceRef.current?.isConfigured()) {
+      alert("Translation API key not configured. Using original text.");
+      setCurrentLang('en');
+      return;
+    }
+
+    setIsTranslating(true);
+    setCurrentLang(lang);
+
+    const textsToTranslate = [
+      "Empowering Your Civic Duty",
+      "Your comprehensive, AI-powered guide to navigating the Indian electoral process. Stay informed, get answers, and make your voice heard.",
+      "Meet Your Saathi",
+      "An intelligent assistant ready to guide you through the electoral process.",
+      "Election Journey",
+      "Frequently Asked Questions"
+    ];
+
+    try {
+      const results = await translationServiceRef.current.translateBatch(textsToTranslate, lang);
+      setTranslatedContent({
+        heroTitle: results[0],
+        heroDesc: results[1],
+        chatTitle: results[2],
+        chatDesc: results[3],
+        timelineTitle: results[4],
+        faqTitle: results[5]
+      });
+    } catch (error) {
+      console.error("Translation error", error);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -43,48 +132,39 @@ export default function App() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendChat = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
+  const handleSend = async (query?: string) => {
+    const text = query || chatInput;
+    if (!text.trim()) return;
     
     // Add user message
-    const newUserMsg = { id: Date.now(), type: 'user', text: chatInput };
+    const newUserMsg = { id: Date.now(), type: 'user', text: text };
     setMessages(prev => [...prev, newUserMsg]);
-    setChatInput('');
-    
-    // Mock bot response
-    setTimeout(() => {
-      let botResponse = 'I can help you find your polling booth, check your voter ID status, or explain the voting process. What would you like to know?';
-      
-      const lowerInput = chatInput.toLowerCase();
-      if (lowerInput.includes('where') || lowerInput.includes('booth') || lowerInput.includes('location')) {
-        botResponse = 'You can find your exact polling booth on the Voter Information Slip or by searching your EPIC number on the official ECI portal.';
-      } else if (lowerInput.includes('register') || lowerInput.includes('apply')) {
-        botResponse = 'To register as a new voter, you need to fill out Form 6 online via the NVSP website or the Voter Helpline App.';
-      } else if (lowerInput.includes('document') || lowerInput.includes('id') || lowerInput.includes('carry')) {
-        botResponse = 'You should carry your Voter ID (EPIC) card. If unavailable, an Aadhaar card, PAN card, or Passport are also accepted at the polling booth.';
-      }
+    if (!query) setChatInput('');
 
+    // AI Response logic
+    if (coachServiceRef.current) {
+      try {
+        const responseMsg = await coachServiceRef.current.chat(text);
+        setMessages(prev => [...prev, { 
+          id: Date.now() + 1, 
+          type: 'bot', 
+          text: responseMsg.content || responseMsg.text
+        }]);
+      } catch (error) {
+        setMessages(prev => [...prev, { 
+          id: Date.now() + 1, 
+          type: 'bot', 
+          text: 'Sorry, I am having trouble connecting to the service right now. Please try again later.' 
+        }]);
+      }
+    } else {
       setMessages(prev => [...prev, { 
         id: Date.now() + 1, 
         type: 'bot', 
-        text: botResponse 
+        text: "I'm still initializing my knowledge base. Please try again in a few seconds." 
       }]);
-    }, 1200);
+    }
   };
-
-  const timelineEvents = [
-    { title: 'Voter Registration', desc: 'Ensure your name is on the electoral roll. Apply via Form 6.' },
-    { title: 'Candidate Nominations', desc: 'Candidates file their affidavits and declare their assets.' },
-    { title: 'Polling Day', desc: 'Cast your vote at your designated polling booth. Bring valid ID.' },
-    { title: 'Counting & Results', desc: 'Votes are tallied and the final results are declared by the ECI.' }
-  ];
-
-  const faqs = [
-    { q: 'How do I check if my name is on the voter list?', a: 'You can verify your name on the electoral roll by visiting the official National Voters Services Portal (NVSP) and searching by your EPIC number or personal details.' },
-    { q: 'What documents do I need to carry to vote?', a: 'You must carry your Voter ID (EPIC) card. If you don\'t have it, you can bring other approved IDs like an Aadhaar Card, PAN Card, or Passport.' },
-    { q: 'Where is my polling booth?', a: 'Your polling booth details are available on your Voter Information Slip. You can also find it online through the Voter Helpline App or the ECI website.' },
-  ];
 
   return (
     <div>
@@ -93,9 +173,22 @@ export default function App() {
           <Vote className="text-saffron" size={32} color="#FF9933" />
           <span>Vote<span className="gradient-text-saffron">India</span></span>
         </div>
-        <button className="btn btn-outline" style={{ padding: '8px 16px', borderRadius: '20px' }}>
-          <Globe size={18} /> English
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {isTranslating && <div className="loader-small"></div>}
+          <select 
+            className="btn btn-outline" 
+            style={{ padding: '8px 16px', borderRadius: '20px', background: 'transparent', color: 'white', border: '1px solid var(--border-glass)' }}
+            value={currentLang}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+          >
+            <option value="en" style={{ background: '#1a1a2e' }}>English</option>
+            <option value="hi" style={{ background: '#1a1a2e' }}>हिन्दी (Hindi)</option>
+            <option value="te" style={{ background: '#1a1a2e' }}>తెలుగు (Telugu)</option>
+            <option value="ta" style={{ background: '#1a1a2e' }}>தமிழ் (Tamil)</option>
+            <option value="bn" style={{ background: '#1a1a2e' }}>বাংলা (Bengali)</option>
+            <option value="mr" style={{ background: '#1a1a2e' }}>मराठी (Marathi)</option>
+          </select>
+        </div>
       </header>
 
       <main className="container" style={{ paddingBottom: '80px' }}>
@@ -108,11 +201,11 @@ export default function App() {
         >
           <div style={{ position: 'absolute', top: '-50%', left: '50%', transform: 'translateX(-50%)', width: '600px', height: '600px', background: 'radial-gradient(circle, rgba(255,153,51,0.15) 0%, rgba(0,0,0,0) 70%)', zIndex: -1 }}></div>
           <h1 style={{ fontSize: '4rem', fontWeight: 800, marginBottom: '24px', letterSpacing: '-1px', lineHeight: 1.1 }}>
-            Empowering Your <br />
+            {translatedContent.heroTitle || "Empowering Your"} <br />
             <span className="gradient-text">Civic Duty</span>
           </h1>
           <p style={{ fontSize: '1.25rem', color: 'var(--text-muted)', maxWidth: '600px', margin: '0 auto 40px' }}>
-            Your comprehensive, AI-powered guide to navigating the Indian electoral process. Stay informed, get answers, and make your voice heard.
+            {translatedContent.heroDesc || "Your comprehensive, AI-powered guide to navigating the Indian electoral process. Stay informed, get answers, and make your voice heard."}
           </p>
           <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
             <button className="btn btn-primary" onClick={() => document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' })}>
@@ -167,36 +260,78 @@ export default function App() {
           style={{ margin: '80px 0' }}
         >
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '2.5rem', marginBottom: '16px' }}>Meet Your <span className="gradient-text">Saathi</span></h2>
-            <p style={{ color: 'var(--text-muted)' }}>An intelligent assistant ready to guide you through the electoral process.</p>
+            <h2 style={{ fontSize: '2.5rem', marginBottom: '16px' }}>Official Election <span className="gradient-text">Helpdesk</span> (AI Assisted)</h2>
+            <p style={{ color: 'var(--text-muted)' }}>Ask questions about Indian elections, get step-by-step guidance, create calendar reminders, or find your nearest election office.</p>
           </div>
 
           <div className="glass-panel chat-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div className="chat-messages">
-              {messages.map((msg) => (
-                <motion.div 
-                  key={msg.id} 
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  className={`chat-bubble ${msg.type}`}
-                >
+            <div className="chat-messages" style={{ maxHeight: '400px' }}>
+              {messages.map(msg => (
+                <div key={msg.id} className={`chat-bubble ${msg.type}`}>
+                  {msg.type === 'bot' && <div style={{ color: 'var(--navy)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px' }}>🏛️ Official Helpdesk</div>}
                   {msg.text}
-                </motion.div>
+                </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
-            <form className="chat-input-area" onSubmit={handleSendChat}>
+
+            <div style={{ padding: '0 24px', display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+              {[
+                { label: "AM I ELIGIBLE?", query: "Am I eligible to vote?" },
+                { label: "REGISTER TO VOTE", query: "How do I register to vote online?" },
+                { label: "FIND MY BOOTH", query: "Where is my polling booth?" },
+                { label: "ABOUT NOTA", query: "What is NOTA?" },
+                { label: "LOK SABHA", query: "Tell me about Lok Sabha elections" },
+                { label: "PANCHAYAT", query: "How do panchayat elections work?" }
+              ].map((btn, i) => (
+                <button 
+                  key={i} 
+                  className="btn btn-outline btn-sm" 
+                  style={{ fontSize: '0.7rem', fontWeight: 700 }}
+                  onClick={() => handleSend(btn.query)}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="chat-input-area">
               <input 
                 type="text" 
                 className="chat-input" 
-                placeholder="Ask about voter registration, polling booths..." 
+                placeholder="Ask about Indian elections..." 
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               />
-              <button type="submit" className="chat-send">
+              <button className="chat-send" onClick={() => handleSend()}>
                 <Send size={20} />
               </button>
-            </form>
+            </div>
+            <div style={{ padding: '8px 24px', fontSize: '0.7rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-glass)' }}>
+              Powered by Google Gemini AI
+            </div>
+          </div>
+        </motion.section>
+
+        {/* 3D Election Journey Visualization Section */}
+        <motion.section 
+          id="3d-scene"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeIn}
+          style={{ margin: '80px 0' }}
+        >
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '2.5rem', marginBottom: '16px' }}>Explore the <span className="gradient-text">Journey</span></h2>
+            <p style={{ color: 'var(--text-muted)' }}>Interactive 3D visualization of the election process.</p>
+          </div>
+          <div 
+            ref={sceneContainerRef} 
+            className="glass-panel" 
+            style={{ width: '100%', height: '600px', overflow: 'hidden', padding: 0, position: 'relative' }}
+          >
           </div>
         </motion.section>
 
@@ -209,7 +344,7 @@ export default function App() {
           variants={fadeIn}
           style={{ margin: '100px 0' }}
         >
-          <h2 style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: '40px' }}>Election <span className="gradient-text">Journey</span></h2>
+          <h2 style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: '40px' }}>{translatedContent.timelineTitle || "Election"} <span className="gradient-text">Journey</span></h2>
           <div className="timeline">
             {timelineEvents.map((event, idx) => (
               <motion.div 
@@ -222,11 +357,149 @@ export default function App() {
               >
                 <div className="timeline-dot"></div>
                 <div className="glass-panel timeline-content">
-                  <h3>{event.title}</h3>
-                  <p>{event.desc}</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <h3 style={{ margin: 0 }}>{event.title}</h3>
+                    <button 
+                      className="btn btn-outline btn-sm"
+                      onClick={() => {
+                        if (calendarServiceRef.current) {
+                          const link = calendarServiceRef.current.generateCalendarLink({
+                            title: event.title,
+                            description: event.description,
+                            startDate: '2026-05-15', // Sample date
+                            isDeadline: false,
+                            category: 'general'
+                          });
+                          window.open(link, '_blank');
+                        }
+                      }}
+                    >
+                      <CalendarDays size={14} /> Remind Me
+                    </button>
+                  </div>
+                  <p>{event.description}</p>
                 </div>
               </motion.div>
             ))}
+          </div>
+        </motion.section>
+
+        {/* Polling Locator Section */}
+        <motion.section 
+          id="locator"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeIn}
+          style={{ margin: '80px 0' }}
+        >
+          <div className="glass-panel" style={{ padding: '40px' }}>
+            <div style={{ marginBottom: '32px' }}>
+              <h2 style={{ fontSize: '2rem', color: 'var(--navy)', marginBottom: '8px' }}>Find Your Nearest Election Office</h2>
+              <p style={{ color: 'var(--text-muted)' }}>Search for your nearest polling booth, district election office, or voter registration centre.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+              <input 
+                type="text" 
+                className="chat-input" 
+                placeholder="Enter city or PIN code (e.g. Chennai)..." 
+                id="booth-search"
+                style={{ background: '#f8fafc', color: '#0f172a', borderColor: '#e2e8f0' }}
+              />
+              <button 
+                className="btn"
+                style={{ background: '#000080', color: 'white' }}
+                onClick={async () => {
+                  const query = (document.getElementById('booth-search') as HTMLInputElement).value;
+                  if (query && mapsServiceRef.current) {
+                    const res = await mapsServiceRef.current.searchPollingLocations(query);
+                    if (res.ok) {
+                      setSearchResults(res.data);
+                      mapsServiceRef.current.initMap('map-container');
+                    }
+                  }
+                }}
+              >
+                SEARCH
+              </button>
+            </div>
+
+            {searchResults.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '16px' }}>Found {searchResults.length} result(s) for "{(document.getElementById('booth-search') as HTMLInputElement).value}"</p>
+                {searchResults.map((loc: any, i: number) => (
+                  <div key={i} style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '1.2rem', color: '#0f172a', marginBottom: '4px' }}>{loc.name}</h3>
+                    <p style={{ fontSize: '1rem', color: '#64748b', marginBottom: '12px' }}>{loc.address}</p>
+                    <button 
+                      className="btn btn-outline btn-sm" 
+                      style={{ color: '#000080', borderColor: '#000080' }}
+                      onClick={() => window.open(mapsServiceRef.current.generateMapsLink(loc.name + " " + loc.address), '_blank')}
+                    >
+                      OPEN IN GOOGLE MAPS ↗
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div id="map-container" className="locator-map" style={{ border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
+                Search to initialize map
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Election Reminders Section */}
+        <motion.section 
+          id="reminders"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeIn}
+          style={{ margin: '80px 0' }}
+        >
+          <div className="glass-panel" style={{ padding: '40px' }}>
+            <div style={{ marginBottom: '32px' }}>
+              <h2 style={{ fontSize: '2rem', color: '#000080', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                📅 Election Reminders — Add to Google Calendar
+              </h2>
+              <p style={{ color: 'var(--text-muted)' }}>Never miss a key election date. Click any reminder to add it directly to your Google Calendar.</p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {[
+                { title: "Voter Registration Deadline — Check Eligibility", date: "Wednesday, 31 December 2025", category: 'registration' },
+                { title: "Polling Day — Cast Your Vote", date: "Sunday, 15 February 2026", category: 'polling' },
+                { title: "Vote Counting Day — Track Results", date: "Thursday, 19 February 2026", category: 'counting' },
+                { title: "Model Code of Conduct Enforcement Begins", date: "Thursday, 15 January 2026", category: 'deadline' }
+              ].map((reminder, i) => (
+                <div key={i} className="reminder-card" style={{ borderLeft: `4px solid ${i === 0 ? '#f97d09' : i === 1 ? '#000080' : i === 2 ? '#046a38' : '#f97d09'}`, background: '#f1f5f9', padding: '24px', borderRadius: '4px' }}>
+                  <h3 style={{ fontSize: '1.25rem', color: '#0f172a', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {i === 0 && '📝'} {i === 1 && '🗳️'} {i === 2 && '📊'} {i === 3 && '⚠️'} {reminder.title}
+                  </h3>
+                  <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '16px' }}>{reminder.date}</p>
+                  <button 
+                    className="btn btn-outline" 
+                    style={{ color: '#000080', borderColor: '#000080', padding: '8px 20px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600 }}
+                    onClick={() => {
+                      if (calendarServiceRef.current) {
+                        const event = calendarServiceRef.current.getAllReminders().find((r: any) => r.category === reminder.category);
+                        if (event) {
+                          window.open(calendarServiceRef.current.generateCalendarLink(event), '_blank');
+                        }
+                      }
+                    }}
+                  >
+                    + ADD TO GOOGLE CALENDAR ↗
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: '24px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Powered by Google Calendar. Dates are indicative — verify with eci.gov.in for confirmed schedules.
+            </div>
           </div>
         </motion.section>
 
@@ -238,7 +511,7 @@ export default function App() {
           variants={fadeIn}
           style={{ maxWidth: '800px', margin: '0 auto 80px' }}
         >
-          <h2 style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: '40px' }}>Frequently Asked <span className="gradient-text">Questions</span></h2>
+          <h2 style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: '40px' }}>{translatedContent.faqTitle || "Frequently Asked Questions"}</h2>
           <div className="faq-list">
             {faqs.map((faq, idx) => (
               <div key={idx} className="faq-item">
@@ -246,7 +519,7 @@ export default function App() {
                   className="faq-question" 
                   onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
                 >
-                  {faq.q}
+                  {faq.question}
                   {activeFaq === idx ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
                 <AnimatePresence>
@@ -258,7 +531,7 @@ export default function App() {
                       style={{ overflow: 'hidden' }}
                     >
                       <div className="faq-answer">
-                        {faq.a}
+                        {faq.answer}
                       </div>
                     </motion.div>
                   )}
