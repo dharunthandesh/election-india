@@ -25,7 +25,7 @@ export class ElectionSecurity {
    */
   static cleanQuery(query: string): string {
     return query
-      .replace(/[<>\"\'\%;\(\)\&\+]/g, '') // Strip suspicious characters
+      .replace(/[<>"'%;()&+/]/g, '') // Strip suspicious characters
       .substring(0, 200) // Limit length
       .trim();
   }

@@ -35,7 +35,7 @@ describe('Coverage Filler Tests', () => {
   describe('ElectionMapsService', () => {
     it('loadMapsApi returns true immediately when already loaded (line 64-65)', async () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.isLoaded = true;
       const result = await service.loadMapsApi();
       expect(result).toBe(true);
@@ -43,21 +43,21 @@ describe('Coverage Filler Tests', () => {
 
     it('loadMapsApi resolves true when google.maps is already in window', async () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       globalThis.google = { maps: { Map: vi.fn(), places: {} } };
       const result = await service.loadMapsApi();
       expect(result).toBe(true);
-      // @ts-ignore
+      // @ts-expect-error
       delete globalThis.google;
     });
 
     it('loadMapsApi resolves true via script.onload', async () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       if (typeof globalThis.google !== 'undefined') delete globalThis.google;
 
       const mockScript: any = { src: '', async: false, defer: false, onload: null, onerror: null };
@@ -73,9 +73,9 @@ describe('Coverage Filler Tests', () => {
 
     it('loadMapsApi resolves false via script.onerror', async () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       if (typeof globalThis.google !== 'undefined') delete globalThis.google;
 
       const mockScript: any = { src: '', async: false, defer: false, onload: null, onerror: null };
@@ -93,7 +93,7 @@ describe('Coverage Filler Tests', () => {
       const service = new ElectionMapsService();
       // Pre-populate cache with the exact key the service will generate for 'delhi'
       // Key = makeCacheKey('maps', sanitizeFull('delhi', 200).toLowerCase()) = 'maps:delhi'
-      // @ts-ignore
+      // @ts-expect-error
       service.cache.set('maps:delhi', [{ name: 'Cached Booth', address: 'Test Address', latitude: 0, longitude: 0 }]);
       // This call should hit the cache directly (lines 138-140)
       const res = await service.searchPollingLocations('delhi');
@@ -103,7 +103,7 @@ describe('Coverage Filler Tests', () => {
 
     it('searchWithPlacesApi returns error without mapInstance', async () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       const res = await service.searchWithPlacesApi('test', 'cache-key');
       expect(res.ok).toBe(false);
       expect(res.error).toBe('Map not initialised');
@@ -111,9 +111,9 @@ describe('Coverage Filler Tests', () => {
 
     it('searchWithPlacesApi maps fallback values for missing place fields (lines 199-202)', async () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.isLoaded = true;
-      // @ts-ignore
+      // @ts-expect-error
       service.mapInstance = {};
 
       const mockTextSearch = vi.fn((_req: unknown, cb: (results: any[], status: string) => void) => {
@@ -123,7 +123,7 @@ describe('Coverage Filler Tests', () => {
         );
       });
 
-      // @ts-ignore
+      // @ts-expect-error
       globalThis.google = {
         maps: {
           places: {
@@ -134,7 +134,7 @@ describe('Coverage Filler Tests', () => {
         },
       } as any;
 
-      // @ts-ignore
+      // @ts-expect-error
       const res = await service.searchWithPlacesApi('test query', 'cache-key-test');
       expect(res.ok).toBe(true);
       expect(res.data![0].name).toBe('Unknown Location');
@@ -142,22 +142,22 @@ describe('Coverage Filler Tests', () => {
       expect(res.data![0].latitude).toBe(0);
       expect(res.data![0].longitude).toBe(0);
 
-      // @ts-ignore
+      // @ts-expect-error
       delete globalThis.google;
     });
 
     it('searchWithPlacesApi handles REQUEST_DENIED error', async () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.isLoaded = true;
-      // @ts-ignore
+      // @ts-expect-error
       service.mapInstance = {};
 
       const mockTextSearch = vi.fn((_req: unknown, cb: (results: null, status: string) => void) => {
         cb(null, 'REQUEST_DENIED');
       });
 
-      // @ts-ignore
+      // @ts-expect-error
       globalThis.google = {
         maps: {
           places: {
@@ -167,26 +167,26 @@ describe('Coverage Filler Tests', () => {
         },
       } as any;
 
-      // @ts-ignore
+      // @ts-expect-error
       const res = await service.searchWithPlacesApi('test', 'cache-key');
       expect(res.ok).toBe(false);
       expect(res.error).toContain('Request Denied');
-      // @ts-ignore
+      // @ts-expect-error
       delete globalThis.google;
     });
 
     it('searchWithPlacesApi handles ZERO_RESULTS error', async () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.isLoaded = true;
-      // @ts-ignore
+      // @ts-expect-error
       service.mapInstance = {};
 
       const mockTextSearch = vi.fn((_req: unknown, cb: (results: null, status: string) => void) => {
         cb(null, 'ZERO_RESULTS');
       });
 
-      // @ts-ignore
+      // @ts-expect-error
       globalThis.google = {
         maps: {
           places: {
@@ -196,26 +196,26 @@ describe('Coverage Filler Tests', () => {
         },
       } as any;
 
-      // @ts-ignore
+      // @ts-expect-error
       const res = await service.searchWithPlacesApi('test', 'cache-key');
       expect(res.ok).toBe(false);
       expect(res.error).toContain('No polling locations');
-      // @ts-ignore
+      // @ts-expect-error
       delete globalThis.google;
     });
 
     it('searchWithPlacesApi handles generic error status', async () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.isLoaded = true;
-      // @ts-ignore
+      // @ts-expect-error
       service.mapInstance = {};
 
       const mockTextSearch = vi.fn((_req: unknown, cb: (results: null, status: string) => void) => {
         cb(null, 'OVER_QUERY_LIMIT');
       });
 
-      // @ts-ignore
+      // @ts-expect-error
       globalThis.google = {
         maps: {
           places: {
@@ -225,24 +225,24 @@ describe('Coverage Filler Tests', () => {
         },
       } as any;
 
-      // @ts-ignore
+      // @ts-expect-error
       const res = await service.searchWithPlacesApi('test', 'cache-key');
       expect(res.ok).toBe(false);
       expect(res.error).toContain('OVER_QUERY_LIMIT');
-      // @ts-ignore
+      // @ts-expect-error
       delete globalThis.google;
     });
 
     it('initMap creates map instance when container exists', () => {
       const service = new ElectionMapsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.isLoaded = true;
       document.body.innerHTML = '<div id="map-test"></div>';
-      // @ts-ignore
+      // @ts-expect-error
       globalThis.google = { maps: { Map: vi.fn() } };
       const result = service.initMap('map-test');
       expect(result).toBe(true);
-      // @ts-ignore
+      // @ts-expect-error
       delete globalThis.google;
     });
   });
@@ -254,18 +254,18 @@ describe('Coverage Filler Tests', () => {
   describe('ElectionAnalyticsService', () => {
     it('trackQuery catches errors silently (line 165-167)', async () => {
       const service = new ElectionAnalyticsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service as any, 'analyseWithNaturalLanguage').mockRejectedValue(new Error('NL API down'));
       await expect(service.trackQuery('test crash')).resolves.toBeUndefined();
     });
 
     it('trackQuery processes entities when NL API returns them (line 160)', async () => {
       const service = new ElectionAnalyticsService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service as any, 'analyseWithNaturalLanguage').mockResolvedValue({
         entities: [
           { name: 'India', type: 'LOCATION', salience: 0.9 },
@@ -274,41 +274,41 @@ describe('Coverage Filler Tests', () => {
         documentSentiment: { score: 0.2, magnitude: 0.5 },
         language: 'en',
       });
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service as any, 'logToFirestore').mockResolvedValue(undefined);
       await expect(service.trackQuery('election in India by ECI')).resolves.toBeUndefined();
     });
 
     it('normaliseSentiment returns positive for score > 0.15', () => {
       const service = new ElectionAnalyticsService();
-      // @ts-ignore
+      // @ts-expect-error
       expect(service.normaliseSentiment({ score: 0.5, magnitude: 1.0 })).toBe('positive');
     });
 
     it('normaliseSentiment returns negative for score < -0.15', () => {
       const service = new ElectionAnalyticsService();
-      // @ts-ignore
+      // @ts-expect-error
       expect(service.normaliseSentiment({ score: -0.5, magnitude: 1.0 })).toBe('negative');
     });
 
     it('normaliseSentiment returns neutral for score between -0.15 and 0.15', () => {
       const service = new ElectionAnalyticsService();
-      // @ts-ignore
+      // @ts-expect-error
       expect(service.normaliseSentiment({ score: 0.0, magnitude: 0.1 })).toBe('neutral');
     });
 
     it('normaliseSentiment returns neutral when sentiment is undefined', () => {
       const service = new ElectionAnalyticsService();
-      // @ts-ignore
+      // @ts-expect-error
       expect(service.normaliseSentiment(undefined)).toBe('neutral');
     });
 
     it('generateSessionId falls back when crypto.randomUUID is unavailable (line 283)', () => {
       const origRandom = crypto.randomUUID;
-      // @ts-ignore
+      // @ts-expect-error
       crypto.randomUUID = undefined;
       const service = new ElectionAnalyticsService();
-      // @ts-ignore
+      // @ts-expect-error
       const id = service.sessionId;
       expect(id).toMatch(/^session-/);
       crypto.randomUUID = origRandom;
@@ -370,7 +370,7 @@ describe('Coverage Filler Tests', () => {
 
   describe('getStagePosition', () => {
     it('returns -1 for invalid stage ID (line 423)', () => {
-      // @ts-ignore
+      // @ts-expect-error
       expect(getStagePosition('invalid-stage-id')).toBe(-1);
     });
   });
@@ -401,27 +401,27 @@ describe('Coverage Filler Tests', () => {
   describe('ElectionVertexService', () => {
     it('cosineSimilarity handles length mismatch (line 223)', () => {
       const service = new ElectionVertexService();
-      // @ts-ignore
+      // @ts-expect-error
       expect(service.cosineSimilarity([1, 2], [1])).toBe(0);
     });
 
     it('cosineSimilarity handles zero magnitude vectors (line 231)', () => {
       const service = new ElectionVertexService();
-      // @ts-ignore
+      // @ts-expect-error
       expect(service.cosineSimilarity([0, 0], [0, 0])).toBe(0);
     });
 
     it('cosineSimilarity handles empty arrays (line 223)', () => {
       const service = new ElectionVertexService();
-      // @ts-ignore
+      // @ts-expect-error
       expect(service.cosineSimilarity([], [])).toBe(0);
     });
 
     it('findRelevantFaq catches error and falls back to keywordFallback (hits line 186)', async () => {
       const service = new ElectionVertexService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service.client, 'post').mockRejectedValue(new Error('fail'));
       const res = await service.findRelevantFaq('test');
       expect(res).toBeNull();
@@ -429,10 +429,10 @@ describe('Coverage Filler Tests', () => {
 
     it('embedText parses successful response and finds matches (hits lines 209-210)', async () => {
       const service = new ElectionVertexService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
       // Mock client.post to return a valid embedding vector
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service.client, 'post').mockResolvedValue({
         ok: true,
         data: {
@@ -441,9 +441,9 @@ describe('Coverage Filler Tests', () => {
       } as any);
       // We also mock the static CORPUS embeddings to be the same vector
       // so the cosine similarity is 1.0 (which is > 0.5)
-      // @ts-ignore
+      // @ts-expect-error
       service.FAQ_EMBEDDINGS = [[0.5, 0.8, 0.3]];
-      // @ts-ignore
+      // @ts-expect-error
       const res = await service.findRelevantFaq('eligibility');
       expect(res).not.toBeNull();
       expect(res!.score).toBeGreaterThan(0.5);
@@ -451,12 +451,12 @@ describe('Coverage Filler Tests', () => {
 
     it('findRelevantFaq falls back if bestScore < 0.5 (hits lines 176-178)', async () => {
       const service = new ElectionVertexService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
       
       // Mock client.post to return [1,0,0] for the first call (query)
       // and [0,1,0] for all subsequent calls (corpus)
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service.client, 'post')
         .mockResolvedValueOnce({
           ok: true,
@@ -490,16 +490,16 @@ describe('Coverage Filler Tests', () => {
 
     it('callGeminiApi returns "Service unavailable" for failed tool call (line 364)', async () => {
       const service = new ElectionCoachService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service as any, 'processToolCall').mockReturnValue({
         toolName: 'find_polling_booth',
         args: {},
         result: null,
         status: 'error',
       });
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service.client, 'post').mockResolvedValue({
         ok: true,
         data: {
@@ -511,23 +511,23 @@ describe('Coverage Filler Tests', () => {
           }],
         },
       });
-      // @ts-ignore
+      // @ts-expect-error
       const result = await service.callGeminiApi('find booth');
       expect(result).toContain('Service unavailable');
     });
 
     it('callGeminiApi returns null when responseText is empty (line 369)', async () => {
       const service = new ElectionCoachService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service.client, 'post').mockResolvedValue({
         ok: true,
         data: {
           candidates: [{ content: { parts: [], role: 'model' } }],
         },
       });
-      // @ts-ignore
+      // @ts-expect-error
       const result = await service.callGeminiApi('empty response test');
       expect(result).toBeNull();
     });
@@ -540,9 +540,9 @@ describe('Coverage Filler Tests', () => {
   describe('ElectionTranslationService', () => {
     it('translateText hits cache on second call', async () => {
       const service = new ElectionTranslationService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service.client, 'post').mockResolvedValue({
         ok: true,
         data: { data: { translations: [{ translatedText: 'translated' }] } },
@@ -554,18 +554,18 @@ describe('Coverage Filler Tests', () => {
 
     it('translateText returns original on API failure', async () => {
       const service = new ElectionTranslationService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service.client, 'post').mockRejectedValue(new Error('fail'));
       expect(await service.translateText('fail', 'hi')).toBe('fail');
     });
 
     it('translateBatch returns originals on API failure', async () => {
       const service = new ElectionTranslationService();
-      // @ts-ignore
+      // @ts-expect-error
       service.apiKey = 'test-key';
-      // @ts-ignore
+      // @ts-expect-error
       vi.spyOn(service.client, 'post').mockRejectedValue(new Error('fail'));
       expect(await service.translateBatch(['fail'], 'hi')).toEqual(['fail']);
     });

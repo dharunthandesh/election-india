@@ -21,7 +21,6 @@ import { ElectionAnalyticsService } from './analytics';
 import { ElectionTranslationService } from './translation';
 import { ElectionMapsService } from './maps';
 import { ElectionVertexService } from './vertex';
-import { ElectionYoutubeService } from './youtube';
 
 /* ---- Tool Declarations for Gemini Function Calling ---- */
 
@@ -232,7 +231,6 @@ export class ElectionCoachService {
   private readonly translator: ElectionTranslationService;
   private readonly maps: ElectionMapsService;
   private readonly vertex: ElectionVertexService;
-  private readonly youtube: ElectionYoutubeService;
   private conversationHistory: CoachMessage[];
 
   /**
@@ -251,7 +249,6 @@ export class ElectionCoachService {
     this.translator = new ElectionTranslationService();
     this.maps = new ElectionMapsService();
     this.vertex = new ElectionVertexService();
-    this.youtube = new ElectionYoutubeService();
     this.conversationHistory = [];
   }
 

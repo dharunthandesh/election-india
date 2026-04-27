@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ElectionVoiceService } from '../../src/services/voice';
 import { ElectionYoutubeService } from '../../src/services/youtube';
 import { ElectionVisionService } from '../../src/services/vision';
