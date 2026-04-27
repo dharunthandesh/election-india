@@ -18,6 +18,7 @@ import { ElectionCalendarService } from './services/calendar';
 import { ElectionVoiceService } from './services/voice';
 import { ElectionYoutubeService } from './services/youtube';
 import { ElectionVisionService } from './services/vision';
+import { ElectionSecurity } from './utils/security';
 
 export default function App() {
   // --- State ---
@@ -122,13 +123,26 @@ export default function App() {
   const handleSendChat = async (query?: string) => {
     const text = query || chatInput;
     if (!text.trim()) return;
+
+    // Security: Rate Limit
+    if (!ElectionSecurity.checkRateLimit('chat_send', 5, 60000)) {
+      setMessages(prev => [...prev, { 
+        id: Date.now() + 1, 
+        type: 'bot', 
+        text: 'You are sending messages too fast. Please wait a moment.' 
+      }]);
+      return;
+    }
+
+    // Security: Sanitize
+    const sanitizedText = ElectionSecurity.sanitize(text);
     
-    setMessages(prev => [...prev, { id: Date.now(), type: 'user', text }]);
+    setMessages(prev => [...prev, { id: Date.now(), type: 'user', text: sanitizedText }]);
     if (!query) setChatInput('');
 
     if (coachServiceRef.current) {
       try {
-        const responseMsg = await coachServiceRef.current.chat(text);
+        const responseMsg = await coachServiceRef.current.chat(sanitizedText);
         const botText = responseMsg.content || responseMsg.text;
         setMessages(prev => [...prev, { id: Date.now() + 1, type: 'bot', text: botText }]);
         if (voiceServiceRef.current) voiceServiceRef.current.speak(botText);
@@ -166,8 +180,12 @@ export default function App() {
   };
 
   const handleBoothSearch = async (query: string) => {
+    // Security: Sanitize Query
+    const cleanQuery = ElectionSecurity.cleanQuery(query);
+    if (!cleanQuery) return;
+
     if (mapsServiceRef.current) {
-      const res = await mapsServiceRef.current.searchPollingLocations(query);
+      const res = await mapsServiceRef.current.searchPollingLocations(cleanQuery);
       if (res.ok) {
         setSearchResults(res.data);
         mapsServiceRef.current.initMap('map-container');
@@ -197,6 +215,7 @@ export default function App() {
   // --- Render ---
   return (
     <div className="app-root">
+      <a href="#main-content" className="skip-link">Skip to Main Content</a>
       <Header 
         currentLang={currentLang} 
         isUserLoggedIn={isUserLoggedIn}
@@ -205,7 +224,7 @@ export default function App() {
         onToggleLogin={() => setIsUserLoggedIn(!isUserLoggedIn)}
       />
 
-      <main className="container" style={{ paddingBottom: '80px' }}>
+      <main id="main-content" className="container" style={{ paddingBottom: '80px' }}>
         <div id="app" ref={sceneContainerRef} className="webgl-container" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -2, opacity: 0.3 }}></div>
 
         <Hero 

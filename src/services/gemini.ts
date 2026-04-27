@@ -21,6 +21,7 @@ import { ElectionAnalyticsService } from './analytics';
 import { ElectionTranslationService } from './translation';
 import { ElectionMapsService } from './maps';
 import { ElectionVertexService } from './vertex';
+import { ElectionYoutubeService } from './youtube';
 
 /* ---- Tool Declarations for Gemini Function Calling ---- */
 
@@ -96,6 +97,21 @@ export const ELECTION_TOOLS: readonly GeminiToolDeclaration[] = [
         },
       },
       required: ['age'],
+    },
+  },
+  {
+    name: 'get_election_timeline',
+    description: 'Get key dates and deadlines for upcoming Indian elections based on the election type.',
+    parameters: {
+      type: 'object',
+      properties: {
+        election_type: {
+          type: 'string',
+          enum: ['LOK_SABHA', 'STATE_ASSEMBLY', 'PANCHAYAT', 'MUNICIPAL', 'BY_ELECTION'],
+          description: 'The type of election to get timeline for',
+        },
+      },
+      required: ['election_type'],
     },
   },
 ] as const;
@@ -216,6 +232,7 @@ export class ElectionCoachService {
   private readonly translator: ElectionTranslationService;
   private readonly maps: ElectionMapsService;
   private readonly vertex: ElectionVertexService;
+  private readonly youtube: ElectionYoutubeService;
   private conversationHistory: CoachMessage[];
 
   /**
@@ -234,6 +251,7 @@ export class ElectionCoachService {
     this.translator = new ElectionTranslationService();
     this.maps = new ElectionMapsService();
     this.vertex = new ElectionVertexService();
+    this.youtube = new ElectionYoutubeService();
     this.conversationHistory = [];
   }
 
@@ -402,6 +420,10 @@ export class ElectionCoachService {
             return { toolName: name, args, result: 'Eligible! You must also be registered in your constituency.', status: 'success' };
           }
           return { toolName: name, args, result: 'Not eligible. Must be 18+ and an Indian citizen.', status: 'success' };
+        }
+
+        case 'get_election_timeline': {
+          return { toolName: name, args, result: 'Key dates: Registration ends Dec 2025, Polling Feb 15 2026, Results Feb 19 2026.', status: 'success' };
         }
 
         default:
