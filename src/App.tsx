@@ -8,11 +8,23 @@ import {
   ChevronDown, 
   ChevronUp,
   Send,
-  Bot
+  Bot,
+  Mic,
+  Video,
+  Camera,
+  User,
+  Globe
 } from 'lucide-react';
 
 import { getAllTimelineEvents } from './data/timeline';
 import { ELECTION_FAQ } from './data/faq';
+import { ElectionCoachService } from './services/gemini';
+import { ElectionMapsService } from './services/maps';
+import { ElectionTranslationService } from './services/translation';
+import { ElectionCalendarService } from './services/calendar';
+import { ElectionVoiceService } from './services/voice';
+import { ElectionYoutubeService } from './services/youtube';
+import { ElectionVisionService } from './services/vision';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -35,11 +47,18 @@ export default function App() {
     { id: 1, type: 'bot', text: 'Namaste! I am your AI Civic Assistant. How can I help you with the upcoming elections?' }
   ]);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const coachServiceRef = useRef<any>(null);
   const mapsServiceRef = useRef<any>(null);
   const translationServiceRef = useRef<any>(null);
   const calendarServiceRef = useRef<any>(null);
+  const voiceServiceRef = useRef<any>(null);
+  const youtubeServiceRef = useRef<any>(null);
+  const visionServiceRef = useRef<any>(null);
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<any>(null);
 
@@ -52,22 +71,16 @@ export default function App() {
   const faqs = ELECTION_FAQ;
 
   useEffect(() => {
-    import('./services/gemini').then(module => {
-      coachServiceRef.current = new module.ElectionCoachService();
-    });
+    coachServiceRef.current = new ElectionCoachService();
+    mapsServiceRef.current = new ElectionMapsService();
+    mapsServiceRef.current.loadMapsApi();
+    translationServiceRef.current = new ElectionTranslationService();
+    calendarServiceRef.current = new ElectionCalendarService();
+    voiceServiceRef.current = new ElectionVoiceService();
+    youtubeServiceRef.current = new ElectionYoutubeService();
+    visionServiceRef.current = new ElectionVisionService();
 
-    import('./services/maps').then(module => {
-      mapsServiceRef.current = new module.ElectionMapsService();
-      mapsServiceRef.current.loadMapsApi();
-    });
-
-    import('./services/translation').then(module => {
-      translationServiceRef.current = new module.ElectionTranslationService();
-    });
-
-    import('./services/calendar').then(module => {
-      calendarServiceRef.current = new module.ElectionCalendarService();
-    });
+    youtubeServiceRef.current.fetchVoterEducationVideos().then(setVideos);
 
     import('./scene/ElectionScene').then(module => {
       if (sceneContainerRef.current) {
@@ -145,11 +158,17 @@ export default function App() {
     if (coachServiceRef.current) {
       try {
         const responseMsg = await coachServiceRef.current.chat(text);
+        const botText = responseMsg.content || responseMsg.text;
         setMessages(prev => [...prev, { 
           id: Date.now() + 1, 
           type: 'bot', 
-          text: responseMsg.content || responseMsg.text
+          text: botText
         }]);
+
+        // Text to Speech
+        if (voiceServiceRef.current) {
+          voiceServiceRef.current.speak(botText);
+        }
       } catch (error) {
         setMessages(prev => [...prev, { 
           id: Date.now() + 1, 
@@ -166,6 +185,33 @@ export default function App() {
     }
   };
 
+  const handleVoiceInput = async () => {
+    if (!voiceServiceRef.current) return;
+    setIsListening(true);
+    try {
+      const transcript = await voiceServiceRef.current.listen();
+      handleSend(transcript);
+    } catch (e) {
+      console.error('Voice input failed', e);
+    } finally {
+      setIsListening(false);
+    }
+  };
+
+  const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !visionServiceRef.current) return;
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      setMessages(prev => [...prev, { id: Date.now(), type: 'user', text: 'Scanning document...' }]);
+      const result = await visionServiceRef.current.analyzeDocument(base64);
+      handleSend(`Analyze this text from an election document: ${result}`);
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div>
       <header className="app-header container">
@@ -173,21 +219,40 @@ export default function App() {
           <Vote className="text-saffron" size={32} color="#FF9933" />
           <span>Vote<span className="gradient-text-saffron">India</span></span>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           {isTranslating && <div className="loader-small"></div>}
-          <select 
+          <button 
             className="btn btn-outline" 
-            style={{ padding: '8px 16px', borderRadius: '20px', background: 'transparent', color: 'white', border: '1px solid var(--border-glass)' }}
-            value={currentLang}
-            onChange={(e) => handleLanguageChange(e.target.value)}
+            style={{ padding: '8px 16px', borderRadius: '20px', background: 'transparent', color: 'white', border: '1px solid var(--border-glass)', display: 'flex', alignItems: 'center', gap: '8px' }}
+            onClick={() => setIsUserLoggedIn(!isUserLoggedIn)}
           >
-            <option value="en" style={{ background: '#1a1a2e' }}>English</option>
-            <option value="hi" style={{ background: '#1a1a2e' }}>हिन्दी (Hindi)</option>
-            <option value="te" style={{ background: '#1a1a2e' }}>తెలుగు (Telugu)</option>
-            <option value="ta" style={{ background: '#1a1a2e' }}>தமிழ் (Tamil)</option>
-            <option value="bn" style={{ background: '#1a1a2e' }}>বাংলা (Bengali)</option>
-            <option value="mr" style={{ background: '#1a1a2e' }}>मराठी (Marathi)</option>
-          </select>
+            {isUserLoggedIn ? (
+              <>
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--navy)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem' }}>JD</div>
+                John Doe
+              </>
+            ) : (
+              <>
+                <User size={16} /> Sign in
+              </>
+            )}
+          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Globe size={18} color="rgba(255,255,255,0.6)" />
+            <select 
+              className="btn btn-outline" 
+              style={{ padding: '8px 16px', borderRadius: '20px', background: 'transparent', color: 'white', border: '1px solid var(--border-glass)' }}
+              value={currentLang}
+              onChange={(e) => handleLanguageChange(e.target.value)}
+            >
+              <option value="en" style={{ background: '#1a1a2e' }}>English</option>
+              <option value="hi" style={{ background: '#1a1a2e' }}>हिन्दी (Hindi)</option>
+              <option value="te" style={{ background: '#1a1a2e' }}>తెలుగు (Telugu)</option>
+              <option value="ta" style={{ background: '#1a1a2e' }}>தமிழ் (Tamil)</option>
+              <option value="bn" style={{ background: '#1a1a2e' }}>বাংলা (Bengali)</option>
+              <option value="mr" style={{ background: '#1a1a2e' }}>మరాठी (Marathi)</option>
+            </select>
+          </div>
         </div>
       </header>
 
@@ -295,15 +360,31 @@ export default function App() {
               ))}
             </div>
 
-            <div className="chat-input-area">
+            <div className="chat-input-area" style={{ position: 'relative' }}>
               <input 
                 type="text" 
                 className="chat-input" 
-                placeholder="Ask about Indian elections..." 
+                placeholder={isListening ? "Listening..." : "Ask about Indian elections..."} 
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                disabled={isListening}
+                style={{ paddingRight: '120px' }}
               />
+              <div style={{ position: 'absolute', right: '70px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '8px' }}>
+                <button 
+                  className={`chat-action-btn ${isListening ? 'active' : ''}`} 
+                  onClick={handleVoiceInput}
+                  title="Voice Search"
+                  style={{ background: isListening ? 'var(--saffron)' : 'transparent', color: isListening ? 'white' : 'var(--text-muted)', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '50%' }}
+                >
+                  <Mic size={20} />
+                </button>
+                <label style={{ cursor: 'pointer', padding: '8px', color: 'var(--text-muted)' }} title="Scan Document">
+                  <Camera size={20} />
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileScan} />
+                </label>
+              </div>
               <button className="chat-send" onClick={() => handleSend()}>
                 <Send size={20} />
               </button>
@@ -500,6 +581,49 @@ export default function App() {
             <div style={{ marginTop: '24px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               Powered by Google Calendar. Dates are indicative — verify with eci.gov.in for confirmed schedules.
             </div>
+          </div>
+        </motion.section>
+
+        {/* YouTube Video Guides Section */}
+        <motion.section 
+          id="videos"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeIn}
+          style={{ margin: '80px 0' }}
+        >
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '2.5rem', marginBottom: '16px' }}><span className="gradient-text">Video</span> Guides</h2>
+            <p style={{ color: 'var(--text-muted)' }}>Watch official voter education and guidance videos from the Election Commission of India.</p>
+          </div>
+
+          <div className="video-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+            <AnimatePresence>
+              {videos.map((video, i) => (
+                <motion.div 
+                  key={video.id + i}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  whileHover={{ y: -10 }}
+                  className="glass-panel"
+                  style={{ overflow: 'hidden', padding: 0 }}
+                >
+                  <a href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div style={{ position: 'relative' }}>
+                      <img src={video.thumbnail} alt={video.title} style={{ width: '100%', height: '180px', objectFit: 'cover' }} />
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(0,0,0,0.6)', borderRadius: '50%', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Video size={24} color="white" />
+                      </div>
+                    </div>
+                    <div style={{ padding: '16px' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '8px', lineHeight: 1.4 }}>{video.title}</h4>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Official ECI Guidance • {new Date(video.publishedAt).toLocaleDateString()}</p>
+                    </div>
+                  </a>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </motion.section>
 
