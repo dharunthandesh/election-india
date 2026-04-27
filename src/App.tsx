@@ -175,6 +175,18 @@ export default function App() {
     }
   };
 
+  const handleLocateMe = async () => {
+    if (!mapsServiceRef.current) return;
+    const coords = await mapsServiceRef.current.getUserLocation();
+    if (coords) {
+      mapsServiceRef.current.initMap('map-container', coords, 15);
+      const res = await mapsServiceRef.current.searchPollingLocations('polling booth');
+      if (res.ok) setSearchResults(res.data);
+    } else {
+      alert("Location access denied. Please search manually.");
+    }
+  };
+
   const handleAddCalendar = (category: string) => {
     if (calendarServiceRef.current) {
       const event = calendarServiceRef.current.getAllReminders().find((r: any) => r.category === category);
@@ -219,6 +231,7 @@ export default function App() {
         <PollingLocator 
           searchResults={searchResults}
           onSearch={handleBoothSearch}
+          onLocateMe={handleLocateMe}
           onOpenInMaps={(name, addr) => window.open(mapsServiceRef.current.generateMapsLink(name + " " + addr), '_blank')}
         />
 
